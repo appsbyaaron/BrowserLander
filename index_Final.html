@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OH Link Dashboard — Container-style Dashboard (with sorting)</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    :root{
+      --sidebar-w:280px;
+      --accent:#0d6efd;
+      --card-bg:#f6f8fb;
+      --btn-gap:8px;
+    }
+    body{min-height:100vh;background:#fff;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;}
+    .sidebar{width:var(--sidebar-w);min-height:100vh;background:#fff;border-right:1px solid #eee;position:fixed;left:0;top:0;padding:18px;}
+    .main{margin-left:var(--sidebar-w);padding:22px 28px;}
+    .brand{font-weight:700;letter-spacing:.2px}
+    .category-card{background:linear-gradient(180deg,#ffffff,var(--card-bg));border:1px solid #e6edf3;border-radius:8px}
+    .category-header{border-bottom:0;padding:12px 16px;font-weight:700}
+    .stacked-btn{display:flex;gap:8px;align-items:center}
+    .stacked-btn .btn-link-main{flex:1;text-align:left;padding:10px 14px;border-radius:6px}
+    .stacked-btn .btn-actions{display:flex;gap:6px}
+    .tag{font-size:.72rem}
+    .empty {color:#6c757d;text-align:center;padding:3rem 0}
+    .count-badge{font-size:.72rem}
+    .sort-indicator {font-size:0.9rem;opacity:0.8}
+    @media (max-width:991px){ .sidebar{position:static;width:100%;min-height:auto;border-right:0} .main{margin-left:0;padding:14px} }
+  
+/* Categories scroll box */
+.sidebar{height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.sidebar-cats{height:220px;overflow-y:auto;padding-right:6px;border:1px solid #eee;border-radius:6px}
+
+/* Tags scroll box */
+.sidebar-tags{height:220px;overflow-y:auto;padding-right:6px;border:1px solid #eee;border-radius:6px}
+
+@media (max-width:991px){
+  .sidebar{height:auto;overflow:visible}
+  .sidebar-cats{height:260px}
+  .sidebar-tags{height:180px}
+}
+
+/* Drag handle styling */
+.drag-handle{cursor:grab;user-select:none;opacity:.75}
+.drag-handle:active{cursor:grabbing}
+.drag-ghost{opacity:.5}
+.drag-chosen{box-shadow:0 0 0 2px rgba(13,110,253,.25)}
+
+</style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar d-flex flex-column">
+    <div class="d-flex align-items-center mb-3">
+      <div style="width:44px;height:44px;border-radius:8px;background:#eef2ff;color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;margin-right:12px">A</div>
+      <div>
+        <div class="brand">OH Link Dashboard</div>
+        <small class="text-muted">Container-style link dashboard</small>
+      </div>
+    </div>
+
+    <div class="mb-3">
+ <input id="search" class="form-control" placeholder="Search sites or tags" />
+ <button class="btn btn-sm btn-outline-secondary w-100 mt-2" id="btnClearSearch" type="button">
+  <i class="bi bi-x-circle"></i> Clear search
+ </button>
+</div>
+ <button class="btn btn-sm btn-outline-warning w-100 mt-2" id="btnFavOnly" type="button" aria-pressed="false" title="Show only favorite links">
+  <i class="bi bi-star-fill"></i> Favorites only
+ </button>
+
+
+    <div class="mb-2 d-grid gap-2">
+      <button class="btn btn-sm btn-outline-primary" id="btnAdd" data-bs-toggle="modal" data-bs-target="#modalAdd">
+        <i class="bi bi-plus-lg"></i> Add link
+      </button>
+      <div class="d-flex gap-1">
+        <button class="btn btn-sm btn-outline-secondary flex-fill" id="btnImport">Import</button>
+        <button class="btn btn-sm btn-outline-secondary flex-fill" id="btnExport">Export</button>
+      </div>
+
+      <div class="mt-2">
+        <label class="form-label mb-1 small">Category sort</label>
+        <select id="categorySort" class="form-select form-select-sm" title="Category sort">
+          <option value="manual">Manual (insertion)</option>
+          <option value="az">A → Z</option>
+          <option value="za">Z → A</option>
+        </select>
+      </div>
+
+      <button class="btn btn-sm btn-outline-secondary mt-2" id="btnManageCats" data-bs-toggle="modal" data-bs-target="#modalCats">
+        <i class="bi bi-folder2-open"></i> Manage categories
+      </button>
+    </div>
+
+    <hr>
+
+    <div class="sidebar-cats-box">
+      <h6 class="mb-1">Categories</h6>
+      <div id="sidebarCats" class="sidebar-cats"></div>
+    </div>
+
+    <div class="sidebar-tags-box mt-3">
+      <h6 class="mb-1">Tags</h6>
+      <div id="sidebarTags" class="sidebar-tags"></div>
+    </div>
+
+    <div class="mt-auto small text-muted">
+      <div>Tip: Create categories and add links to them. Deleting a category moves its links to <strong>Uncategorized</strong>.</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h4 class="mb-0">Dashboard</h4>
+        <small class="text-muted">Category containers with stacked buttons — now sortable</small>
+      </div>
+      <div>
+        <div class="btn-group" role="group">
+          <button class="btn btn-outline-secondary btn-sm" id="viewCompact">Compact</button>
+          <button class="btn btn-outline-secondary btn-sm" id="viewComfort">Comfort</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="categoriesContainer" class="row g-4">
+      <!-- category columns inserted here -->
+    </div>
+
+    <div id="empty" class="empty d-none">
+      <i class="bi bi-bookmark-x" style="font-size:48px"></i>
+      <div class="mt-2">No links yet — add or import a JSON file.</div>
+    </div>
+  </main>
+
+  <!-- Add / Edit Link Modal -->
+  <div class="modal fade" id="modalAdd" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="formAdd" class="modal-content" onsubmit="return false;">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalTitle">Add link</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label">Title</label>
+            <input id="iTitle" class="form-control" required autocomplete="off">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">URL</label>
+            <input id="iUrl" class="form-control" type="url" placeholder="https://example.com" required autocomplete="off">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Category</label>
+            <div class="input-group">
+              <select id="iCategory" class="form-select"></select>
+              <button class="btn btn-outline-secondary" id="btnAddCategoryInline" type="button" title="Add new category"><i class="bi bi-plus"></i></button>
+            </div>
+          </div>
+      <div class="mb-2">
+        <label class="form-label">Button style</label>
+        <select id="iVariant" class="form-select">
+          <optgroup label="Solid">
+            <option value="btn-primary">Primary</option>
+            <option value="btn-secondary">Secondary</option>
+            <option value="btn-success">Success</option>
+            <option value="btn-danger">Danger</option>
+            <option value="btn-warning">Warning</option>
+            <option value="btn-info">Info</option>
+            <option value="btn-light">Light</option>
+            <option value="btn-dark">Dark</option>
+          </optgroup>
+          <optgroup label="Outline">
+            <option value="btn-outline-primary" selected>Outline Primary</option>
+            <option value="btn-outline-secondary">Outline Secondary</option>
+            <option value="btn-outline-success">Outline Success</option>
+            <option value="btn-outline-danger">Outline Danger</option>
+            <option value="btn-outline-warning">Outline Warning</option>
+            <option value="btn-outline-info">Outline Info</option>
+            <option value="btn-outline-dark">Outline Dark</option>
+            <option value="btn-outline-light">Outline Light</option>
+          </optgroup>
+        </select>
+        <div class="form-text">Applies only to this link's main button.</div>
+      </div>
+
+          <div class="mb-2">
+            <label class="form-label">Tags (comma separated)</label>
+            <input id="iTags" class="form-control" placeholder="news,tools" autocomplete="off">
+          </div>
+          <div class="form-check mb-0">
+            <input id="iFav" class="form-check-input" type="checkbox">
+            <label class="form-check-label">Favorite</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button id="saveBtn" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Manage Categories Modal -->
+  <div class="modal fade" id="modalCats" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Manage categories</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3 d-flex gap-2">
+            <input id="newCatName" class="form-control" placeholder="New category name" autocomplete="off">
+            <button id="createCatBtn" class="btn btn-primary">Create</button>
+          </div>
+          <div id="catsList" class="list-group"></div>
+          <div class="mt-3 text-muted small">Deleting a category moves its links to <strong>Uncategorized</strong>.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for import -->
+  <input id="fileInput" type="file" accept="application/json" style="display:none" />
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <script>
+    /* STORAGE KEYS */
+    const KEY_LINKS = 'dashboard_links_containers_v1';
+    const KEY_CATS  = 'dashboard_cats_containers_v1';
+    const KEY_SORTS = 'dashboard_sort_prefs_v1';
+
+    /* DEFAULTS */
+    const DEFAULT_CATEGORIES = ['Uncategorized','AI','Bridges','EPIC','Productivity','Tools'];
+
+    const DEFAULT_LINKS = [
+      {title:'ChatGPT', url:'https://chat.openai.com/chat', tags:['ai'], fav:false, category:'AI', variant:'btn-outline-primary'},
+    ];
+
+    /* STATE */
+    let links = [];
+    let categories = [];
+    let sortPrefs = { categorySort: 'manual', linkSorts: {} }; // linkSorts:
+  let activeCategoryView = 'ALL'; // ALL | category name
+
+  let favoritesOnly = false; // toggle to show only favorite links
+  // { 'Category Name': 'none'|'az'|'za' }
+
+    /* UI refs */
+    const searchEl = document.getElementById('search');
+    const sidebarCatsEl = document.getElementById('sidebarCats');
+      const sidebarTagsEl = document.getElementById('sidebarTags');
+    const categoriesContainer = document.getElementById('categoriesContainer');
+    const emptyEl = document.getElementById('empty');
+    const fileInput = document.getElementById('fileInput');
+    const categorySortEl = document.getElementById('categorySort');
+
+    /* modals */
+    const addModal = new bootstrap.Modal(document.getElementById('modalAdd'));
+    const catsModal = new bootstrap.Modal(document.getElementById('modalCats'));
+
+    /* load/save */
+    function loadState(){
+      try {
+        const rawLinks = localStorage.getItem(KEY_LINKS);
+        const rawCats = localStorage.getItem(KEY_CATS);
+        const rawSorts = localStorage.getItem(KEY_SORTS);
+        if(rawCats){ categories = JSON.parse(rawCats); } else { categories = DEFAULT_CATEGORIES.slice(); localStorage.setItem(KEY_CATS, JSON.stringify(categories)); }
+        if(rawLinks){ links = JSON.parse(rawLinks); } else { links = DEFAULT_LINKS.slice(); localStorage.setItem(KEY_LINKS, JSON.stringify(links)); }
+        if(rawSorts){ sortPrefs = JSON.parse(rawSorts); } else { sortPrefs = { categorySort: 'manual', linkSorts: {} }; localStorage.setItem(KEY_SORTS, JSON.stringify(sortPrefs)); }
+      } catch(e){ console.warn('load fail', e); categories = DEFAULT_CATEGORIES.slice(); links = DEFAULT_LINKS.slice(); sortPrefs = { categorySort: 'manual', linkSorts: {} }; }
+    }
+    function saveState(){ localStorage.setItem(KEY_LINKS, JSON.stringify(links)); localStorage.setItem(KEY_CATS, JSON.stringify(categories)); localStorage.setItem(KEY_SORTS, JSON.stringify(sortPrefs)); }
+
+    /* helpers */
+    function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+    function slugify(s){ return (s||'').toString().toLowerCase().replaceAll(/[^a-z0-9]+/g,'-').replaceAll(/(^-|-$)/g,''); }
+    function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+    function cycleSortState(state){
+      // none -> az -> za -> none
+      if(state === 'none' || !state) return 'az';
+      if(state === 'az') return 'za';
+      if(state === 'za') return 'none';
+      return 'none';
+    }
+    function sortArrayByTitle(arr, order){
+      if(!order || order === 'none') return arr;
+      const copy = arr.slice();
+      copy.sort((a,b)=>{
+        const A = (a.title||'').toLowerCase();
+        const B = (b.title||'').toLowerCase();
+        if(A < B) return order === 'az' ? -1 : 1;
+        if(A > B) return order === 'az' ? 1 : -1;
+        return 0;
+      });
+      return copy;
+    }
+
+
+    function getBaseLinks(){
+      // Applies global filters that should affect sidebar + main rendering
+      return links.filter(l => !favoritesOnly || !!l.fav);
+    }
+
+    /* sidebar categories list */
+    function renderSidebarCategories(){
+      const counts = {};
+      const baseLinks = getBaseLinks();
+            baseLinks.forEach(l => counts[l.category] = (counts[l.category]||0) + 1);
+      const total = baseLinks.length;
+
+      if(activeCategoryView !== 'ALL' && !categories.includes(activeCategoryView)) activeCategoryView = 'ALL';
+
+      // determine category order according to sortPrefs.categorySort
+      let catsToShow = categories.slice();
+      if(sortPrefs.categorySort === 'az'){
+        catsToShow = catsToShow.slice().sort((a,b)=> a.toLowerCase().localeCompare(b.toLowerCase()));
+      } else if(sortPrefs.categorySort === 'za'){
+        catsToShow = catsToShow.slice().sort((a,b)=> b.toLowerCase().localeCompare(a.toLowerCase()));
+      }
+
+      const allActive = activeCategoryView === 'ALL';
+      sidebarCatsEl.innerHTML = `
+        <button class="btn btn-sm ${allActive ? 'btn-primary' : 'btn-light'} w-100 text-start mb-2 sidebar-cat" data-cat="ALL">
+          <div class="d-flex justify-content-between align-items-center">
+            <div><strong>All</strong> ${favoritesOnly ? '<i class=\"bi bi-star-fill text-warning ms-1\"></i>' : ''}</div>
+            <span class="badge bg-secondary count-badge">${total}</span>
+          </div>
+        </button>
+      ` + catsToShow.map(cat => {
+        const c = counts[cat] || 0;
+        const active = activeCategoryView === cat;
+        return `
+          <button class="btn btn-sm ${active ? 'btn-primary' : 'btn-light'} w-100 text-start mb-1 sidebar-cat" data-cat="${escapeHtml(cat)}">
+            <div class="d-flex justify-content-between align-items-center">
+              <div><strong>${escapeHtml(cat)}</strong></div>
+              <span class="badge bg-secondary count-badge">${c}</span>
+            </div>
+          </button>`;
+      }).join('');
+
+      document.querySelectorAll('.sidebar-cat').forEach(b => {
+        b.addEventListener('click', () => {
+          activeCategoryView = b.dataset.cat;
+          renderAll();
+        });
+      });
+
+      categorySortEl.value = sortPrefs.categorySort || 'manual';
+    }
+
+      /* sidebar tags list */
+      function renderSidebarTags(){
+        if(!sidebarTagsEl) return;
+        // Build tag -> count map from all links
+        const tagCounts = new Map();
+        const baseLinks = getBaseLinks();
+
+        baseLinks.forEach(l => {
+          (l.tags || []).forEach(t => {
+            const tag = (t || '').trim();
+            if(!tag) return;
+            const key = tag.toLowerCase();
+            tagCounts.set(key, (tagCounts.get(key) || 0) + 1);
+          });
+        });
+
+        if(tagCounts.size === 0){
+          sidebarTagsEl.innerHTML = `<div class="text-muted small p-2">No tags yet.</div>`;
+          return;
+        }
+
+        // Sort tags A->Z
+        const sorted = Array.from(tagCounts.entries()).sort((a,b) => a[0].localeCompare(b[0]));
+
+        sidebarTagsEl.innerHTML = sorted.map(([tagLower, count]) => {
+          const display = tagLower;
+          return `
+            <button class="btn btn-sm btn-light w-100 text-start mb-1 sidebar-tag" data-tag="${escapeHtml(display)}">
+              <div class="d-flex justify-content-between align-items-center">
+                <div><span class="badge bg-secondary me-2 tag">${escapeHtml(display)}</span></div>
+                <span class="badge bg-secondary count-badge">${count}</span>
+              </div>
+            </button>
+          `;
+        }).join('');
+
+        sidebarTagsEl.querySelectorAll('.sidebar-tag').forEach(b => {
+          b.addEventListener('click', () => {
+            const tag = b.dataset.tag || '';
+            searchEl.value = tag;      // act like a search
+            activeCategoryView = 'ALL';
+            renderAll();
+            searchEl.focus();
+          });
+        });
+      }
+
+
+/* render categories as container blocks with stacked buttons */
+    function renderCategories(){
+      const q = (searchEl.value||'').trim().toLowerCase();
+
+
+      const baseLinks = getBaseLinks();
+      // group links by category (keep categories order)
+      const grouped = {};
+      categories.forEach(c => grouped[c] = []);
+      links.forEach((l, idx) => {
+        if(favoritesOnly && !l.fav) return;
+        if(!grouped[l.category]) grouped[l.category] = [];
+        grouped[l.category].push({...l, _idx: idx});
+      });
+
+      // determine category order according to sortPrefs.categorySort
+      let catsToRender = (activeCategoryView === 'ALL') ? categories.slice() : categories.filter(c => c === activeCategoryView);
+      if(sortPrefs.categorySort === 'az'){
+        catsToRender = catsToRender.slice().sort((a,b)=> a.toLowerCase().localeCompare(b.toLowerCase()));
+      } else if(sortPrefs.categorySort === 'za'){
+        catsToRender = catsToRender.slice().sort((a,b)=> b.toLowerCase().localeCompare(a.toLowerCase()));
+      }
+
+      categoriesContainer.innerHTML = '';
+      let anyVisible = false;
+
+      catsToRender.forEach(cat => {
+        // apply per-category sort (pull current preference or default none)
+        const linkSortState = sortPrefs.linkSorts && sortPrefs.linkSorts[cat] ? sortPrefs.linkSorts[cat] : 'none';
+        let items = (grouped[cat]||[]).slice();
+
+        // apply link sort if set
+        items = sortArrayByTitle(items, linkSortState);
+
+        // filter by query
+        const visible = items.filter(it => {
+          if(!q) return true;
+          const hay = (it.title + ' ' + (it.tags||[]).join(' ') + ' ' + it.url).toLowerCase();
+          return hay.includes(q);
+        });
+
+        if(visible.length === 0) return; // hide empty categories when filtered
+
+        anyVisible = true;
+
+        // determine indicator
+        let sortIcon = '';
+        if(linkSortState === 'az') sortIcon = '<span class="sort-indicator">A→Z</span>';
+        else if(linkSortState === 'za') sortIcon = '<span class="sort-indicator">Z→A</span>';
+        else sortIcon = '<span class="sort-indicator text-muted">—</span>';
+
+        // build category column
+        const col = document.createElement('div');
+        col.className = 'col-12 col-md-6 col-lg-4';
+        col.dataset.catId = slugify(cat);
+        col.innerHTML = `
+          <div class="category-card p-0">
+            <div class="category-header d-flex justify-content-between align-items-center">
+              <div>
+                ${escapeHtml(cat)}
+                <div class="text-muted small">${grouped[cat].length} total</div>
+              </div>
+              <div class="d-flex gap-1 align-items-center">
+ <span class="drag-handle" title="Drag to reorder (manual sort)"><i class="bi bi-grip-vertical"></i></span>
+                <div class="me-2">${sortIcon}</div>
+                <button class="btn btn-sm btn-outline-secondary btn-sort-links" data-cat="${escapeHtml(cat)}" title="Cycle link sort (None → A→Z → Z→A)"><i class="bi bi-sort-alpha-down"></i></button>
+                <button class="btn btn-sm btn-outline-secondary btn-edit-cat" data-cat="${escapeHtml(cat)}" title="Rename category"><i class="bi bi-pencil"></i></button>
+                ${cat !== 'Uncategorized' ? `<button class="btn btn-sm btn-outline-danger btn-delete-cat" data-cat="${escapeHtml(cat)}" title="Delete category"><i class="bi bi-trash"></i></button>` : ''}
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="d-grid gap-2">
+                ${visible.map(it => `
+                  <div class="stacked-btn">
+                    <a class="btn ${escapeHtml(it.variant || 'btn-outline-primary')} btn-link-main" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">${escapeHtml(it.title)}</a>
+                    <div class="btn-actions">
+                      <button class="btn btn-sm btn-outline-secondary copyBtn" data-url="${escapeHtml(it.url)}" title="Copy URL"><i class="bi bi-clipboard"></i></button>
+                      <button class="btn btn-sm btn-outline-warning favBtn" data-idx="${it._idx}" title="Toggle favorite"><i class="bi bi-star${it.fav?'-fill':''}"></i></button>
+                      <button class="btn btn-sm btn-outline-secondary editBtn" data-idx="${it._idx}" title="Edit"><i class="bi bi-pencil-square"></i></button>
+                      <button class="btn btn-sm btn-outline-danger delBtn" data-idx="${it._idx}" title="Delete"><i class="bi bi-x"></i></button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+        categoriesContainer.appendChild(col);
+      });
+
+      emptyEl.classList.toggle('d-none', anyVisible);
+
+      // wire up category-level and item buttons (after DOM inserted)
+      setTimeout(()=> {
+        document.querySelectorAll('.copyBtn').forEach(b=> b.addEventListener('click', ()=> navigator.clipboard.writeText(b.dataset.url)));
+        document.querySelectorAll('.favBtn').forEach(b=> b.addEventListener('click', ()=>{
+          const idx = Number(b.dataset.idx); links[idx].fav = !links[idx].fav; saveState(); renderAll();
+        }));
+        document.querySelectorAll('.editBtn').forEach(b=> b.addEventListener('click', ()=> openEdit(Number(b.dataset.idx))));
+        document.querySelectorAll('.delBtn').forEach(b=> b.addEventListener('click', ()=>{
+          const idx = Number(b.dataset.idx);
+          if(confirm('Delete this link?')){ links.splice(idx,1); saveState(); renderAll(); }
+        }));
+
+        document.querySelectorAll('.btn-edit-cat').forEach(b=> b.addEventListener('click', ()=> {
+          const name = b.dataset.cat;
+          const newName = prompt('Rename category "'+name+'" to:', name);
+          if(!newName || !newName.trim() || newName.trim() === name) return;
+          renameCategory(name, newName.trim());
+        }));
+        document.querySelectorAll('.btn-delete-cat').forEach(b=> b.addEventListener('click', ()=>{
+          const name = b.dataset.cat;
+          if(confirm('Delete category "'+name+'"? Links will be moved to Uncategorized.')) deleteCategory(name);
+        }));
+
+        // sort toggles
+        document.querySelectorAll('.btn-sort-links').forEach(b=> b.addEventListener('click', ()=>{
+          const cat = b.dataset.cat;
+          const cur = sortPrefs.linkSorts[cat] || 'none';
+          const next = cycleSortState(cur);
+          sortPrefs.linkSorts[cat] = next === 'none' ? undefined : next;
+          // normalize undefined removal
+          if(!sortPrefs.linkSorts[cat]) delete sortPrefs.linkSorts[cat];
+          saveState(); renderAll();
+        }));
+            initCategoryDrag();
+    }, 40);
+    }
+
+    /* category CRUD */
+    function createCategory(name){
+      name = (name||'').trim();
+      if(!name) return alert('Category name required');
+      if(categories.includes(name)) return alert('Category already exists');
+      categories.push(name);
+      saveState(); renderAll();
+    }
+    function renameCategory(oldName, newName){
+      newName = (newName||'').trim();
+      if(!newName) return alert('New name required');
+      if(oldName === 'Uncategorized') return alert('Cannot rename Uncategorized');
+      if(categories.includes(newName)) return alert('A category with that name exists');
+      const idx = categories.indexOf(oldName);
+      if(idx === -1) return;
+      categories[idx] = newName;
+      // keep active view consistent
+      if(activeCategoryView === oldName) activeCategoryView = newName;
+      // update sortPrefs.linkSorts key if present
+      if(sortPrefs.linkSorts && sortPrefs.linkSorts[oldName]){
+        sortPrefs.linkSorts[newName] = sortPrefs.linkSorts[oldName];
+        delete sortPrefs.linkSorts[oldName];
+      }
+      // update links assigned to oldName
+      links.forEach(l => { if(l.category === oldName) l.category = newName; });
+      saveState(); renderAll();
+    }
+    function deleteCategory(name){
+      if(name === 'Uncategorized') return alert('Cannot delete Uncategorized');
+      categories = categories.filter(c => c !== name);
+      if(activeCategoryView === name) activeCategoryView = 'ALL';
+      // move links to Uncategorized
+      links.forEach(l => { if(l.category === name) l.category = 'Uncategorized'; });
+      // remove any saved sort for that category
+      if(sortPrefs.linkSorts && sortPrefs.linkSorts[name]) delete sortPrefs.linkSorts[name];
+      saveState(); renderAll();
+    }
+
+    /* manage categories UI */
+    function renderManageCategories(){
+      const el = document.getElementById('catsList');
+      el.innerHTML = categories.map(c => `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong>${escapeHtml(c)}</strong>
+            <div class="text-muted small">${links.filter(l => l.category === c).length} link(s)</div>
+          </div>
+          <div class="d-flex gap-1">
+            ${c !== 'Uncategorized' ? `<button class="btn btn-sm btn-outline-primary renameCatBtn" data-cat="${escapeHtml(c)}">Rename</button>
+            <button class="btn btn-sm btn-outline-danger deleteCatBtn" data-cat="${escapeHtml(c)}">Delete</button>` : `<span class="badge bg-secondary">default</span>`}
+          </div>
+        </div>
+      `).join('');
+      el.querySelectorAll('.renameCatBtn').forEach(b => b.addEventListener('click', ()=>{
+        const oldName = b.dataset.cat;
+        const newName = prompt('Rename category "' + oldName + '" to:', oldName);
+        if(newName && newName.trim() && newName !== oldName) renameCategory(oldName, newName.trim());
+      }));
+      el.querySelectorAll('.deleteCatBtn').forEach(b => b.addEventListener('click', ()=>{
+        const name = b.dataset.cat;
+        deleteCategory(name);
+      }));
+    }
+
+    /* add / edit link */
+    let editIndex = -1;
+    function openAddModal(){
+      editIndex = -1;
+      document.getElementById('modalTitle').textContent = 'Add link';
+      document.getElementById('iTitle').value = '';
+      document.getElementById('iUrl').value = '';
+      document.getElementById('iTags').value = '';
+      document.getElementById('iVariant').value = 'btn-outline-primary';
+      document.getElementById('iFav').checked = false;
+      populateCategorySelect();
+      addModal.show();
+    }
+    function openEdit(idx){
+      editIndex = idx;
+      const it = links[idx];
+      document.getElementById('modalTitle').textContent = 'Edit link';
+      document.getElementById('iTitle').value = it.title || '';
+      document.getElementById('iUrl').value = it.url || '';
+      document.getElementById('iTags').value = (it.tags||[]).join(',');
+      document.getElementById('iFav').checked = !!it.fav;
+      document.getElementById('iVariant').value = it.variant || 'btn-outline-primary';
+      populateCategorySelect(it.category || 'Uncategorized');
+      addModal.show();
+    }
+    function populateCategorySelect(selected){
+      const sel = document.getElementById('iCategory');
+      sel.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}" ${c === selected ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', ()=>{
+      const title = document.getElementById('iTitle').value.trim();
+      const url = document.getElementById('iUrl').value.trim();
+      const tags = document.getElementById('iTags').value.split(',').map(s=>s.trim()).filter(Boolean);
+      const fav = document.getElementById('iFav').checked;
+      const category = document.getElementById('iCategory').value || 'Uncategorized';
+      const variant = document.getElementById('iVariant').value || 'btn-outline-primary';
+      if(!title || !url) return alert('Title and URL required');
+      if(editIndex >= 0){
+        links[editIndex] = { title, url, tags, fav, category, variant };
+      } else {
+        links.push({ title, url, tags, fav, category, variant });
+      }
+      saveState(); addModal.hide(); renderAll();
+    });
+
+    document.getElementById('btnAdd').addEventListener('click', openAddModal);
+
+    /* inline create category in Add modal */
+    document.getElementById('btnAddCategoryInline').addEventListener('click', ()=>{
+      const name = prompt('New category name:');
+      if(name && name.trim()){
+        const n = name.trim();
+        if(categories.includes(n)) return alert('Category exists');
+        categories.push(n);
+        saveState();
+        populateCategorySelect(n);
+        renderAll();
+      }
+    });
+
+    /* manage categories modal create button */
+    document.getElementById('createCatBtn').addEventListener('click', ()=>{
+      const name = document.getElementById('newCatName').value.trim();
+      if(!name) return alert('Name required');
+      if(categories.includes(name)) return alert('Category exists');
+      categories.push(name);
+      document.getElementById('newCatName').value = '';
+      saveState(); renderAll();
+    });
+
+    /* import/export */
+    document.getElementById('btnExport').addEventListener('click', ()=>{
+      const exportObj = { categories, links, sortPrefs };
+      const blob = new Blob([JSON.stringify(exportObj, null, 2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'dashboard-export.json'; a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById('btnImport').addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', (e)=>{
+      const f = e.target.files[0]; if(!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try{
+          const obj = JSON.parse(reader.result);
+          if(Array.isArray(obj)){
+            obj.forEach(it => { if(it.title && it.url){ links.push({ title: it.title, url: it.url, tags: it.tags || [], fav: !!it.fav, category: it.category || 'Uncategorized', variant: it.variant || 'btn-outline-primary' }); } });
+            saveState(); renderAll(); alert('Imported ' + obj.length + ' links (appended).');
+          } else if(obj && typeof obj === 'object'){
+            if(Array.isArray(obj.categories)) obj.categories.forEach(c => { if(!categories.includes(c)) categories.push(c); });
+            if(Array.isArray(obj.links)) obj.links.forEach(it => { if(it.title && it.url) links.push({ title: it.title, url: it.url, tags: it.tags || [], fav: !!it.fav, category: it.category || 'Uncategorized', variant: it.variant || 'btn-outline-primary' }); });
+            if(obj.sortPrefs) sortPrefs = obj.sortPrefs;
+            saveState(); renderAll(); alert('Imported data.');
+          } else throw new Error('Invalid format');
+        }catch(err){ alert('Invalid JSON file'); console.warn(err); }
+      };
+      reader.readAsText(f);
+      e.target.value = '';
+    });
+
+    /* search input */
+
+// clear search button (ONLY clears the search field)
+const clearSearchBtn = document.getElementById('btnClearSearch');
+if(clearSearchBtn){
+  clearSearchBtn.addEventListener('click', () => {
+    searchEl.value = '';
+    renderCategories();
+    searchEl.focus();
+  });
+}
+
+    searchEl.addEventListener
+
+
+// favorites only toggle
+const favOnlyBtn = document.getElementById('btnFavOnly');
+if(favOnlyBtn){
+  const syncFavBtn = ()=>{
+    favOnlyBtn.setAttribute('aria-pressed', favoritesOnly ? 'true' : 'false');
+    favOnlyBtn.classList.toggle('btn-outline-warning', !favoritesOnly);
+    favOnlyBtn.classList.toggle('btn-warning', favoritesOnly);
+  };
+  favOnlyBtn.addEventListener('click', ()=>{
+    favoritesOnly = !favoritesOnly;
+    syncFavBtn();
+    renderAll();
+  });
+  syncFavBtn();
+}
+
+
+    searchEl.addEventListener('input', debounce(()=> renderCategories(), 160));
+
+    /* category sort control */
+    categorySortEl.addEventListener('change', ()=>{
+      sortPrefs.categorySort = categorySortEl.value || 'manual';
+      saveState(); renderAll();
+    });
+
+    /* view toggles (compact vs comfort) */
+    document.getElementById('viewCompact').addEventListener('click', ()=>{
+      document.querySelectorAll('.stacked-btn .btn-link-main').forEach(b => b.classList.add('btn-sm'));
+      document.querySelectorAll('.category-card').forEach(c => c.style.padding = '0');
+    });
+    document.getElementById('viewComfort').addEventListener('click', ()=>{
+      document.querySelectorAll('.stacked-btn .btn-link-main').forEach(b => b.classList.remove('btn-sm'));
+      document.querySelectorAll('.category-card').forEach(c => c.style.padding = '');
+    });
+
+    
+    /* category container drag & drop (manual only) */
+    let categoriesSortable = null;
+    function initCategoryDrag(){
+      if(typeof Sortable === 'undefined') return;
+      if(categoriesSortable){ categoriesSortable.destroy(); categoriesSortable = null; }
+      const manual = (sortPrefs.categorySort || 'manual') === 'manual';
+      document.querySelectorAll('.drag-handle').forEach(h => h.style.display = manual ? '' : 'none');
+      if(!manual) return;
+
+      categoriesSortable = new Sortable(categoriesContainer, {
+        animation: 150,
+        handle: '.drag-handle',
+        draggable: '.col-12',
+        ghostClass: 'drag-ghost',
+        chosenClass: 'drag-chosen',
+        onEnd: () => {
+          const newOrder = Array.from(categoriesContainer.children)
+            .map(col => col.dataset.catId)
+            .filter(Boolean);
+          const slugToName = new Map(categories.map(n => [slugify(n), n]));
+          const orderedNames = newOrder.map(sl => slugToName.get(sl)).filter(Boolean);
+          const remaining = categories.filter(n => !orderedNames.includes(n));
+          categories = orderedNames.concat(remaining);
+          saveState();
+          renderAll();
+        }
+      });
+    }
+
+/* render everything orchestration */
+    function renderAll(){
+      renderSidebarCategories();
+      renderSidebarTags();
+      renderCategories();
+      renderManageCategories();
+    }
+
+    /* initialize */
+    (function init(){
+      loadState();
+      if(!categories.includes('Uncategorized')) categories.unshift('Uncategorized');
+      if(!categories.length) categories = DEFAULT_CATEGORIES.slice();
+      links.forEach(l => { if(!l.category || !categories.includes(l.category)) l.category = 'Uncategorized'; });
+    links.forEach(l => { if(!l.variant) l.variant = 'btn-outline-primary'; });
+      // ensure sortPrefs keys exist
+      sortPrefs = sortPrefs || { categorySort: 'manual', linkSorts: {} };
+      saveState();
+      renderAll();
+      // expose helpers for console
+      window._dash = { addCategory:createCategory, renameCategory, deleteCategory, addLink:o => { if(o && o.title && o.url){ links.push({ title:o.title, url:o.url, tags:o.tags||[], fav:!!o.fav, category:o.category||'Uncategorized' }); saveState(); renderAll(); } } };
+    })();
+  </script>
+</body>
+</html>
